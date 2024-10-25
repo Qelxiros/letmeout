@@ -11,5 +11,5 @@ COPY . .
 RUN cargo build --release
 
 # Set the entrypoint command to run the application
-CMD ["./target/release/froshbot"]
+CMD ["./target/release/letmeout"]
 
