@@ -49,6 +49,7 @@ async fn update_users(api_key: &str, user_group: &str, users: Vec<String>) {
     let res = client
         .post("https://slack.com/api/usergroups.users.update")
         .header("Authorization", format!("Bearer {}", api_key))
+        .header("Content-type", "application/json")
         .json(&serde_json::json!({
             "usergroup": user_group,
             "users": users,
