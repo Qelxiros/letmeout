@@ -35,6 +35,7 @@ async fn get_current_group_members(api_key: &str, user_group: &str) -> Vec<Strin
         .await
         .unwrap();
     let v: Value = serde_json::from_str(&res.text().await.unwrap()).unwrap();
+    println!("{v:?}");
     v["users"]
         .as_array()
         .unwrap()
