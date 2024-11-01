@@ -5,7 +5,7 @@ use actix_web::{
 use hmac::{Hmac, Mac};
 use serde_json::Value;
 use sha2::Sha256;
-use std::env;
+use std::{collections::HashMap, env};
 
 #[derive(Clone)]
 struct AppState {
@@ -62,6 +62,18 @@ async fn update_users(api_key: &str, user_group: &str, users: Vec<String>) {
     }
 }
 
+fn parse(body: &str) -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    for entry in body.split('&') {
+        let mut chom = entry.split('=');
+        map.insert(
+            chom.next().unwrap().to_string(),
+            chom.next().unwrap().to_string(),
+        );
+    }
+    map
+}
+
 async fn index(body: Bytes, req: HttpRequest, data: web::Data<AppState>) -> impl Responder {
     let signature = match req.headers().get("X-Slack-Signature") {
         Some(s) => s,
@@ -78,38 +90,14 @@ async fn index(body: Bytes, req: HttpRequest, data: web::Data<AppState>) -> impl
     let body = std::str::from_utf8(&body).unwrap();
     println!("Body: {}", body);
     if verify_hmac(timestamp, body, signature, &data.signing_secret) {
-        let v: Value = serde_json::from_str(body).unwrap();
-        if v.get("challenge").is_some() {
-            let challenge = v["challenge"].as_str().unwrap().to_string();
+        let v = parse(body);
+        if v.contains_key("challenge") {
+            let challenge = v["challenge"].clone();
             return HttpResponse::Ok().body(challenge);
         }
-        // Get events
-        let event = match v["event"].as_object() {
-            Some(e) => e,
-            None => return HttpResponse::BadRequest().finish(),
-        };
-        let event_type = match event["type"].as_str() {
-            Some(t) => t,
-            None => return HttpResponse::BadRequest().finish(),
-        };
-        if event_type != "team_join" {
-            return HttpResponse::BadRequest().finish();
-        }
-        let user = match event["user"].as_object() {
-            Some(u) => u,
-            None => return HttpResponse::BadRequest().finish(),
-        };
-        match user["is_bot"].as_bool() {
-            None => return HttpResponse::BadRequest().finish(),
-            Some(true) => return HttpResponse::Ok().finish(),
-            Some(false) => (),
-        };
-        let user_id = match user["id"].as_str() {
-            Some(u) => u,
-            None => return HttpResponse::BadRequest().finish(),
-        };
+        let user_id = &v["user_id"];
         let mut users_in_group = get_current_group_members(&data.api_key, &data.user_group).await;
-        if !users_in_group.contains(&user_id.to_string()) {
+        if !users_in_group.contains(user_id) {
             return HttpResponse::Ok().finish();
         }
         users_in_group.retain(|x| x != user_id);
